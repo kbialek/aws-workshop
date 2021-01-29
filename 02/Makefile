@@ -1,4 +1,4 @@
-deploy-stack-01 deploy-stack-02: deploy-stack-%:
+deploy-stack-01 deploy-stack-02 deploy-stack-03: deploy-stack-%:
 	./commands.sh deploy-stack $*
 
 delete-stack:
