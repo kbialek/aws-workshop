@@ -110,7 +110,8 @@ svg:not(:root) {
 }
 
 figure {
-  margin: 0
+  margin: 0;
+    text-align: center;
 }
 
 fieldset {
@@ -210,6 +211,7 @@ a:hover {
 
 img, object, embed {
   max-width: 100%;
+  max-height: 500px;
   height: auto
 }
 

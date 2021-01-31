@@ -1,0 +1,52 @@
+= AWS Workshop #2
+Krzysztof Białek
+:imagesdir: images
+:sectids!:
+:experimental:
+:stylesdir: styles
+:stylesheet: main.css
+
+== Agenda
+* EC2 - Omówienie podstawowych właściwości oraz utworzenie instancji poprzez AWS Console
+* EC2 - Generacja KeyPair i podłączenie do instancji przez SSH
+* EC2 - Zmiana typu instancji
+* STS - Dekodowanie błędów autoryzacji
+* Cloudformation (CFN) - Krótkie wprowadzenie
+* CFN - Utworzenie instancji EC2 poprzez CFN
+* VPC - Podłączenie EC2 do internetu
+* EC2 - Podłączenie do instancji przez SSH
+* EC2 - Wystawienie statycznej strony html
+
+== Repozytorium GIT
+[source,bash]
+----
+git clone git@github.com:kbialek/aws-workshop.git
+----
+
+
+== Dekodowanie błędów autoryzacji
+
+[source,bash]
+----
+aws sts decode-authorization-message --encoded-message "....."
+----
+
+== Cloudformation
+
+* Pierwszy deployment
++
+[source,bash]
+----
+aws cloudformation deploy \
+  --stack-name MyEc2Stack \
+  --template-file template01.yaml
+----
+
+== VPC - template-01
+image::diagram-01.png[]
+
+== VPC - template-02
+image::diagram-02.png[]
+
+== VPC - template-03
+image::diagram-03.png[]
