@@ -23,6 +23,21 @@ Krzysztof Białek
 git clone git@github.com:kbialek/aws-workshop.git
 ----
 
+== EC2 KeyPair
+* Uprawnienia pliku klucza prywatnego
++
+[source,bash]
+----
+chmod 400 key.pem
+----
+
+* Połączenie SSH z wybranym kluczem prywatnym
++
+[source,bash]
+----
+ssh -i key.pem ec2-user@<EC2_INSTANCE_IP>
+----
+
 
 == Dekodowanie błędów autoryzacji
 
@@ -50,3 +65,6 @@ image::diagram-02.png[]
 
 == VPC - template-03
 image::diagram-03.png[]
+
+== VPC - template-04
+image::diagram-04.png[]
