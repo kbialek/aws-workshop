@@ -68,3 +68,25 @@ image::diagram-03.png[]
 
 == VPC - template-04
 image::diagram-04.png[]
+
+== Statyczna strona HTML
+* Aktualizacja systemu
++
+[source,bash]
+----
+sudo yum update -y
+----
+
+* Instalacja serwera Apache
++
+[source,bash]
+----
+sudo yum install -y httpd
+----
+
+* Uruchomienie serwera Apache
++
+[source,bash]
+----
+sudo systemctl start httpd.service
+----
