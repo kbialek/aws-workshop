@@ -1,0 +1,78 @@
+= AWS Workshop #3
+Krzysztof Białek
+:imagesdir: images
+:sectids!:
+:experimental:
+:stylesdir: styles
+:stylesheet: main.css
+
+== Agenda
+* EC2 - Odczyt EC2 metadata
+* EC2 - Prekonfiguracja instancji EC2 skryptem user-data
+* EC2, CFN - Prekonfiguracja instancji EC2 poprzez CFN Metadata
+* CloudWatch - krótkie omówienie
+* EC2, CloudWatch - Monitoring, domyślne logi, metryki i alerty
+* EC2, CloudWatch - Monitoring, własne logi, metryki i alerty
+
+== VPC + EC2 - Przypomnienie
+image::diagram-05.png[]
+
+== EC2 Metadata
+* *Problem*: Jak z poziomu EC2 uzyskać np. własny instance-id lub ami-id?
+* *Rozwiązanie*: Odczyt metadanych
+** https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
+** Polecenie:
++
+[source,bash]
+----
+curl http://169.254.169.254/latest/meta-data/
+----
+** Kategorie metadanych: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-categories.html
+
+== EC2 User-data
+* *Problem*: Jak automatycznie zainstalować i uruchomić oprogramowanie na nowo utworzonej instancji EC2?
+* *Rozwiązanie 1*: Skrypt user-data
+** https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
+** Przykład w template-06
+** Log w `/var/log/cloud-init-output.log`
+** Logowanie komend: `#!/bin/bash -xe`
+
+== Cloudformation helper `cfn-init`
+* *Problem*: Jak automatycznie zainstalować i uruchomić oprogramowanie na nowo utworzonej instancji EC2?
+* *Rozwiązanie 2*: `cfn-init` i `AWS::CloudFormation::Init`
+** https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-init.html
+** https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-init.html
+** Przykład w template-07
+** Log `cfn-init`: `/var/log/cfn-init.log`
+** Log komend uruchamianych przez `cfn-init`: `/var/log/cfn-init-cmd.log`
+
+== CloudWatch - domyślny monitoring EC2
+* Logi - brak
+* Metryki - m.in CPU, Network
+* Alerty - brak
+
+== CloudWatch - własne logi i metryki
+* *Problem*: Jak monitorować wykorzystanie RAM w EC2?
+* *Rozwiązanie*: CloudWatch Unified Agent
+** https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html
+** Niezbędne uprawniena: `arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy`
+
+== CloudWatch - własne logi i metryki
+image::diagram-08.png[]
+
+== CloudWatch - alerty
+* Instalacja narzędzia `stress`
++
+[source,bash]
+----
+sudo amazon-linux-extras install epel -y
+sudo yum install stress -y
+----
+* Symulacja zwiększonego wykorzystania pamięci
++
+[source,bash]
+----
+stress --vm 1 --vm-bytes 700M --vm-keep
+----
+
+
