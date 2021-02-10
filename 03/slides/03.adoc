@@ -46,6 +46,86 @@ curl http://169.254.169.254/latest/meta-data/
 ** Log `cfn-init`: `/var/log/cfn-init.log`
 ** Log komend uruchamianych przez `cfn-init`: `/var/log/cfn-init-cmd.log`
 
+== CloudWatch - Logi (1/3)
+* Log Group
++
+[source,bash]
+----
+aws logs create-log-group \
+  --log-group-name app/demo
+----
+
+* Log Stream
++
+[source,bash]
+----
+aws logs create-log-stream \
+  --log-group-name app/demo \
+  --log-stream-name server1
+----
+
+== CloudWatch - Logi (2/3)
+* Put Log Events
++
+[source,bash]
+----
+aws logs put-log-events --log-group-name app/demo \
+  --log-stream-name server1 \
+  --log-events file://events.json
+----
++
+[source,bash]
+.events.json
+----
+  [
+    {
+      "timestamp": 1612931452356,
+      "message": "Example Event 1"
+    },
+    {
+      "timestamp": 1612941452358,
+      "message": "Example Event 2"
+    }
+  ]
+----
+
+== CloudWatch - Logi (3/3)
+* Get Log Events
++
+[source,bash]
+----
+aws logs get-log-events \
+  --log-group-name app/demo \
+  --log-stream-name server1
+----
+
+* https://github.com/jorgebastida/awslogs
++
+[source,bash]
+----
+awslogs groups
+awslogs streams app/demo
+awslogs get app/demo -s12h
+----
+
+== CloudWatch - Metryki
+* Put Metric Data
++
+[source,bash]
+----
+aws cloudwatch put-metric-data \
+  --namespace demoApp \
+  --metric-data { ... }
+----
+
+* Get Metric Data
++
+[source,bash]
+----
+aws cloudwatch get-metric-data ...
+----
+
+
 == CloudWatch - domyślny monitoring EC2
 * Logi - brak
 * Metryki - m.in CPU, Network
