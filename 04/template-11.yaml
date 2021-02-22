@@ -1,0 +1,314 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+
+  DeploymentBucket:
+    Type: String
+
+Resources:
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  RouteTableInternetGatewayRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: eu-central-1a
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.8.0/24
+      AvailabilityZone: eu-central-1a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.9.0/24
+      AvailabilityZone: eu-central-1b
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+  SshSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows SSH access from all IPs
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows HTTP access from all IPs
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+
+  Ec2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: DeploymentBucketAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                  - !Sub arn:aws:s3:::${DeploymentBucket}/*
+
+  Ec2InstanceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref Ec2InstanceRole
+
+  EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref PublicSubnet
+      ImageId: ami-00a205cb8e06c3c4e
+      SecurityGroupIds:
+        - !Ref SshSecurityGroup
+        - !Ref WebServerSecurityGroup
+      KeyName: !Ref KeyPair
+      IamInstanceProfile: !Ref Ec2InstanceInstanceProfile
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash -xe
+          yum update -y
+          yum install -y aws-cfn-bootstrap
+
+          # Install the files and packages from the metadata
+          /opt/aws/bin/cfn-init -v \
+            --stack ${AWS::StackName} \
+            --resource EC2 \
+            --configsets install \
+            --region ${AWS::Region}
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          install: [ installCloudwatchAgent, installApp ]
+        installCloudwatchAgent:
+          packages:
+            yum:
+              amazon-cloudwatch-agent: [ ]
+          files:
+            /etc/cloudwatch-agent-config.json:
+              content: !Sub |
+                {
+                        "agent": {
+                                "metrics_collection_interval": 60
+                        },
+                        "logs": {
+                                "logs_collected": {
+                                        "files": {
+                                                "collect_list": [
+                                                        {
+                                                                "file_path": "/var/log/demo-app.log",
+                                                                "log_group_name": "${AWS::StackName}/application",
+                                                                "log_stream_name": "{instance_id}"
+                                                        }
+                                                ]
+                                        }
+                                }
+                        },
+                        "metrics": {
+                                "namespace": "MyApp",
+                                "append_dimensions": {
+                                        "StackName": "${AWS::StackName}",
+                                        "InstanceId": "${!aws:InstanceId}"
+                                },
+                                "metrics_collected": {
+                                        "mem": {
+                                                "measurement": [
+                                                        "mem_used_percent"
+                                                ],
+                                                "metrics_collection_interval": 60
+                                        },
+                                        "statsd":{
+                                               "service_address":":8125",
+                                               "metrics_collection_interval":60,
+                                               "metrics_aggregation_interval":300
+                                        }
+                                }
+                        }
+                }
+              mode: "000400"
+              owner: "root"
+              group: "root"
+          commands:
+            start-agent:
+              command: "/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/etc/cloudwatch-agent-config.json"
+        installApp:
+          packages:
+            yum:
+              python3: [ ]
+          files:
+            /opt/install_app.sh:
+              content: !Sub |
+                #!/bin/bash -xe
+
+                # Download and extract application package
+                mkdir /opt/demo-app
+                aws s3 cp s3://${DeploymentBucket}/demo-app.zip /tmp
+                unzip -x /tmp/demo-app.zip -d /opt/demo-app
+
+                # Install dependencies
+                cd /opt/demo-app
+                pip3 install -r requirements.txt
+
+                # Start the application
+                chmod +x run.sh
+                systemctl daemon-reload
+                systemctl enable demo-app.service
+                systemctl start demo-app.service
+              mode: "000755"
+              owner: "root"
+              group: "root"
+            /etc/systemd/system/demo-app.service:
+              content: |
+                [Unit]
+                Description=Demo App
+
+                [Service]
+                WorkingDirectory=/opt/demo-app
+                ExecStart=/opt/demo-app/run.sh
+                Restart=on-failure
+
+                [Install]
+                WantedBy=multi-user.target
+              mode: "000644"
+              owner: "root"
+              group: "root"
+            /opt/env.sh:
+              content: !Sub
+                - |
+                  export DB_HOST="${DbHost}"
+                  export DB_USER="${DbUser}"
+                  export DB_PASSWORD="${DbPassword}"
+                - DbHost: !GetAtt [ Database, Endpoint.Address ]
+                  DbUser: sa
+                  DbPassword: supersecret
+              mode: "000644"
+              owner: "root"
+              group: "root"
+          commands:
+            install-app:
+              command: "/opt/install_app.sh"
+
+  Ec2MemHighUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Checks if EC2 mem usage is exceeding 80%
+      Namespace: MyApp
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2
+      MetricName: mem_used_percent
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 80
+      Unit: Percent
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Maximum
+
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DemoApp database subnet group
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub ${AWS::StackName}-db
+      DBInstanceClass: db.t2.micro
+      Engine: mysql
+      AllocatedStorage: 5
+      StorageType: gp2
+      MultiAZ: true
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      MasterUsername: sa
+      MasterUserPassword: supersecret
+
+
+Outputs:
+  Ec2Ip:
+    Value: !GetAtt EC2.PublicIp
