@@ -5,5 +5,5 @@ diagrams-all:
 	mv *.png images/
 
 render-slides: diagrams-all
-	asciidoctor-web-pdf ./03.adoc --template-require ../../slides-template/template.js
+	asciidoctor-web-pdf ./04.adoc --template-require ../../slides-template/template.js
 

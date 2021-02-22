@@ -7,147 +7,165 @@ Krzysztof Białek
 :stylesheet: main.css
 
 == Agenda
-*
+* Omówienie aplikacji demo
+* CFN, S3 - Automatyczny deployment aplikacji po starcie EC2
+* RDS - Relacyjna baza danych
+* SecretsManager
+* RDS IAM Authentication
 
-== VPC + EC2 - Przypomnienie
-image::diagram-05.png[]
-
-== EC2 Metadata
-* *Problem*: Jak z poziomu EC2 uzyskać np. własny instance-id lub ami-id?
-* *Rozwiązanie*: Odczyt metadanych
-** https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
-** Polecenie:
+== Aplikacja demo - lokalnie
+* Python 3 + Flask
 +
 [source,bash]
 ----
-curl http://169.254.169.254/latest/meta-data/
+cd demo-app
+source virtualenvwrapper.sh
+workon aws-workshop-app
+export FLASK_CONFIG=dev
+export FLASK_APP=run.py
+flask run
 ----
-** Kategorie metadanych: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-categories.html
 
-== EC2 User-data
-* *Problem*: Jak automatycznie zainstalować i uruchomić oprogramowanie na nowo utworzonej instancji EC2?
-* *Rozwiązanie 1*: Skrypt user-data
-** https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
-** Przykład w template-06
-** Log w `/var/log/cloud-init-output.log`
-** Logowanie komend: `#!/bin/bash -xe`
-
-== Cloudformation helper `cfn-init`
-* *Problem*: Jak automatycznie zainstalować i uruchomić oprogramowanie na nowo utworzonej instancji EC2?
-* *Rozwiązanie 2*: `cfn-init` i `AWS::CloudFormation::Init`
-** https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-init.html
-** https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-init.html
-** Przykład w template-07
-** Log `cfn-init`: `/var/log/cfn-init.log`
-** Log komend uruchamianych przez `cfn-init`: `/var/log/cfn-init-cmd.log`
-
-== CloudWatch - Logi (1/3)
-* Log Group
-+
+== Aplikacja demo - API (1/2)
 [source,bash]
 ----
-aws logs create-log-group \
-  --log-group-name app/demo
+# POST
+echo '{"brand":"Kia", "model":"Ceed", "year":2015}' | http POST $HOST/api/vehicles
+echo '{"brand":"Fiat", "model":"Tipo", "year":2017}' | http POST $HOST/api/vehicles
+
+# GET
+http $HOST/api/vehicles
+http $HOST/api/vehicles/1
 ----
 
-* Log Stream
-+
+== Aplikacja demo - API (2/2)
 [source,bash]
 ----
-aws logs create-log-stream \
-  --log-group-name app/demo \
-  --log-stream-name server1
+# PUT
+echo '{"brand":"Kia", "model":"Ceed", "year":2016}' | http PUT $HOST/api/vehicles/1
+
+# DELETE
+http DELETE $HOST/api/vehicles/1
+
+# GET InstanceId
+http $HOST/api/instance_id
 ----
 
-== CloudWatch - Logi (2/3)
-* Put Log Events
-+
+
+== Przypomnienie
+image::diagram-09.png[]
+
+== Deployment aplikacji (template-10)
+* *Problem*: Jak automatycznie zainstalować i uruchomić aplikację po utworzeniu EC2 przez CFN?
+* *Rozwiązanie*: Umieścić paczkę w S3, a następnie zainstalować ją przez `cfn-init`
+
+== RDS - Więcej niż baza danych
+* Managed mySQL, PostgreSQL, SQLServer, Oracle
+* Współpraca z VPC
+* Backupy i Snapshoty
+* High Availability
+* Repliki
+* CFN DeletionPolicy
+* Aurora
+
+== AWS - Availability Zones
+image::london-region.png[]
+
+== RDS - Baza danych dla aplikacji demo-app (template-11)
+image::diagram-11.png[]
+
+== RDS - Konfiguracja Security groups
+* *Problem*: Brak komunikacji z EC2 do RDS?
+* *Rozwiązanie*: Poprawna konfiguracja Security Groups
+
+image::diagram-12.png[]
+
+== Ręczna konfiguracja bazy danych pod aplikację demo-app (template-12)
 [source,bash]
 ----
-aws logs put-log-events --log-group-name app/demo \
-  --log-stream-name server1 \
-  --log-events file://events.json
-----
-+
-[source,bash]
-.events.json
-----
-  [
-    {
-      "timestamp": 1612931452356,
-      "message": "Example Event 1"
-    },
-    {
-      "timestamp": 1612941452358,
-      "message": "Example Event 2"
-    }
-  ]
+cd demo-app
+# Load DB credentials
+source ../env.sh
+# Create database schema
+mysql -h $DB_HOST -u sa -p$DB_PASSWORD
+create database aws_workshop;
+# Create database schema objects
+export FLASK_CONFIG=prod
+export FLASK_APP=run.py
+flask db upgrade
+# Restart app
+sudo systemctl restart demo-app.service
 ----
 
-== CloudWatch - Logi (3/3)
-* Get Log Events
-+
+== SecretsManager - Bezpieczne miejsce dla haseł do bazy danych
+* *Problem*: Jak automatycznie wygenerować hasło roota dla bazy?
+* *Rozwiązanie*: Skorzystać z SecretsManager
+
+== Ręczna konfiguracja bazy danych z SecretManagerem (1/2) (template-13)
 [source,bash]
 ----
-aws logs get-log-events \
-  --log-group-name app/demo \
-  --log-stream-name server1
+cd demo-app
+# Load DB credentials
+source ../env.sh
+
+# Create database schema
+mysql -h $DB_HOST -u sa -p
+create database aws_workshop;
+create user demo_app@'%' identified by '<demo_app_password_from_secretsmanager>';
+grant all on aws_workshop.* to demo_app@'%';
 ----
 
-* https://github.com/jorgebastida/awslogs
-+
+== Ręczna konfiguracja bazy danych z SecretManagerem (2/2) (template-13)
 [source,bash]
 ----
-awslogs groups
-awslogs streams app/demo
-awslogs get app/demo -s12h
+# Create database schema objects
+export FLASK_CONFIG=prod
+export FLASK_APP=run.py
+flask db upgrade
+
+# Restart app
+sudo systemctl restart demo-app.service
 ----
 
-== CloudWatch - Metryki
-* Put Metric Data
-+
+== RDS IAM authentication (1/4) (template-14)
+* https://aws.amazon.com/premiumsupport/knowledge-center/users-connect-rds-iam/
+* Brak w CFN https://github.com/aws-cloudformation/aws-cloudformation-coverage-roadmap/issues/105
+
+== RDS IAM authentication (2/4) (template-14)
 [source,bash]
 ----
-aws cloudwatch put-metric-data \
-  --namespace demoApp \
-  --metric-data { ... }
+cd demo-app
+# Load DB credentials
+source ../env.sh
+
+# Create database schema
+mysql -h $DB_HOST -u sa -p
+CREATE DATABASE aws_workshop;
+CREATE USER demo_app@'%' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+GRANT ALL ON aws_workshop.* TO demo_app@'%';
 ----
 
-* Get Metric Data
-+
+== RDS IAM authentication (2/4) (template-14)
 [source,bash]
 ----
-aws cloudwatch get-metric-data ...
+# Generate temporary database password
+export DB_PASSWORD=$(aws --region eu-central-1 rds generate-db-auth-token --hostname $DB_HOST --username $DB_USER --port 3306)
+
+# Connect to the database using temporary password
+mysql --ssl -h $DB_HOST -u $DB_USER -p"$DB_PASSWORD" aws_workshop
+
+# Connect to the database using temporary password and certificate verification
+mysql --ssl-ca=rds-ca-2019-root.pem -h $DB_HOST -u $DB_USER -p"$DB_PASSWORD" aws_workshop
 ----
 
-
-== CloudWatch - domyślny monitoring EC2
-* Logi - brak
-* Metryki - m.in CPU, Network
-* Alerty - brak
-
-== CloudWatch - własne logi i metryki
-* *Problem*: Jak monitorować wykorzystanie RAM w EC2?
-* *Rozwiązanie*: CloudWatch Unified Agent
-** https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html
-** Niezbędne uprawniena: `arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy`
-
-== CloudWatch - własne logi i metryki
-image::diagram-08.png[]
-
-== CloudWatch - alerty
-* Instalacja narzędzia `stress`
-+
+== RDS IAM authentication (3/4) (template-14)
 [source,bash]
 ----
-sudo amazon-linux-extras install epel -y
-sudo yum install stress -y
-----
-* Symulacja zwiększonego wykorzystania pamięci
-+
-[source,bash]
-----
-stress --vm 1 --vm-bytes 700M --vm-keep
-----
+# Create database schema objects
+export FLASK_CONFIG=prod
+export FLASK_APP=run.py
+flask db upgrade
 
-
+# Restart app
+sudo systemctl restart demo-app.service
+----
