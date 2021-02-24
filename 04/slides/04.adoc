@@ -59,6 +59,9 @@ image::diagram-09.png[]
 * *Problem*: Jak automatycznie zainstalować i uruchomić aplikację po utworzeniu EC2 przez CFN?
 * *Rozwiązanie*: Umieścić paczkę w S3, a następnie zainstalować ją przez `cfn-init`
 
+== Deployment aplikacji (template-10)
+image::diagram-10.png[]
+
 == RDS - Więcej niż baza danych
 * Managed mySQL, PostgreSQL, SQLServer, Oracle
 * Współpraca z VPC
