@@ -49,28 +49,10 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet
 
-  PublicSubnetNatGatewayElasticIp:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-
-  PublicSubnetNatGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt PublicSubnetNatGatewayElasticIp.AllocationId
-      SubnetId: !Ref PublicSubnet
-
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref Vpc
-
-  RouteTableNatGatewayRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref PublicSubnetNatGateway
 
   PrivateSubnetA:
     Type: AWS::EC2::Subnet
@@ -393,99 +375,6 @@ Resources:
       SecretId: !Ref DatabaseAppSecret
       TargetId: !Ref Database
       TargetType: AWS::RDS::DBInstance
-
-  DatabaseSchemaInitLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: AllowCloudWatchAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-        - PolicyName: AllowDeploymentBucketAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                Resource:
-                  - !Sub arn:aws:s3:::${DeploymentBucket}/*
-        - PolicyName: AllowSecretsManagerAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Ref DatabaseSecret
-                  - !Ref DatabaseAppSecret
-        - PolicyName: AllowVPCAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DeleteNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                Resource: "*"
-
-
-  LambdaDefaultSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allows all outbound traffic
-      VpcId: !Ref Vpc
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  DatabaseSchemaInitLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Initializes Database for demo application
-      Runtime: python3.8
-      Role: !GetAtt DatabaseSchemaInitLambdaExecutionRole.Arn
-      Handler: init_db.lambda_handler
-      Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !Ref PrivateSubnetA
-          - !Ref PrivateSubnetB
-        SecurityGroupIds:
-          - !Ref DatabaseClientSecurityGroup
-          - !Ref LambdaDefaultSecurityGroup
-      Code:
-        S3Bucket: !Ref DeploymentBucket
-        S3Key: lambda/init_db.zip
-
-  DatabaseSchemaInitCustomResource:
-    Type: "Custom::DatabaseSchemaInit"
-    DependsOn: Database
-    Properties:
-      ServiceToken: !GetAtt DatabaseSchemaInitLambda.Arn
-      AwsRegion: !Ref AWS::Region
-      SaSecretName: !Ref DatabaseSecret
-      AppSecretName: !Ref DatabaseAppSecret
-
 
 Outputs:
   Ec2Ip:

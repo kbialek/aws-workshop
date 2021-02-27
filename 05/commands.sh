@@ -29,7 +29,7 @@ function get-deployment-bucket() {
 }
 
 function app-package() {
-    rm demo-app.zip
+    rm -f demo-app.zip
     cd demo-app
     zip -r ../demo-app.zip . -x \*__pycache__*
     cd -
@@ -38,6 +38,30 @@ function app-package() {
 function app-upload() {
   BUCKET=$(get-deployment-bucket)
   aws s3 cp demo-app.zip "s3://$BUCKET/"
+}
+
+function app-lambda-package() {
+    base_dir=$(pwd)
+    upload_dir="$base_dir/upload"
+    lambda_name="$2"
+    lambda_dir="demo-app/lambda/$lambda_name"
+    zip_file="$upload_dir/$lambda_name.zip"
+    rm "$zip_file"
+    cd "$lambda_dir"
+    # install and package requirements
+    mkdir -p package
+    pip3 install --target ./package -r requirements.txt
+    cd package
+    zip -r "$zip_file" . -x \*__pycache__*
+    cd -
+    # package function code
+    zip -g -r "$zip_file" . -x \*__pycache__* -x \package/*
+    cd "$base_dir"
+}
+
+function app-lambda-upload() {
+  BUCKET=$(get-deployment-bucket)
+  aws s3 cp --recursive upload/ "s3://$BUCKET/lambda"
 }
 
 ### Application Stack

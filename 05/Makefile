@@ -21,3 +21,10 @@ app-package:
 
 app-upload: app-package
 	./commands.sh app-upload
+
+app-lambda-package-init_db: app-lambda-package-%:
+	mkdir -p upload
+	./commands.sh app-lambda-package $*
+
+app-lambda-upload: app-lambda-package-init_db
+	./commands.sh app-lambda-upload
