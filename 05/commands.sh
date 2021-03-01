@@ -89,4 +89,19 @@ function get-ec2-ip() {
       --output text
 }
 
+function get-asg-ec2-public-ip() {
+    ASG_NAME=$(aws cloudformation describe-stacks \
+      --stack-name "$APP_STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='AsgName'].OutputValue" \
+      --output text)
+    INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
+      --auto-scaling-group-names "$ASG_NAME" \
+      --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" \
+      --output text)
+    aws ec2 describe-instances \
+      --instance-ids $INSTANCES \
+      --query "Reservations[].Instances[].PublicIpAddress" \
+      --output text
+}
+
 $1 "$@"
