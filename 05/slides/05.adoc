@@ -1,4 +1,4 @@
-= AWS Workshop #4
+= AWS Workshop #5
 Krzysztof Białek
 :imagesdir: images
 :sectids!:
@@ -7,168 +7,54 @@ Krzysztof Białek
 :stylesheet: main.css
 
 == Agenda
-* Omówienie aplikacji demo
-* CFN, S3 - Automatyczny deployment aplikacji po starcie EC2
-* RDS - Relacyjna baza danych
-* SecretsManager
-* RDS IAM Authentication
+* Lambda - wprowadzenie
+* Lambda w CloudFormation
+* Lambda a VPC
+* Nat Gateway
+* EC2 Launch Template
+* EC2 Auto Scaling
 
-== Aplikacja demo - lokalnie
-* Python 3 + Flask
-+
-[source,bash]
-----
-cd demo-app
-source virtualenvwrapper.sh
-workon aws-workshop-app
-export FLASK_CONFIG=dev
-export FLASK_APP=run.py
-flask run
-----
+== Lambda - wprowadzenie
+* Koncepcja
+* Sync/Async
+* Timeout
+* Uprawnienia
+* Logi
 
-== Aplikacja demo - API (1/2)
-[source,bash]
-----
-# POST
-echo '{"brand":"Kia", "model":"Ceed", "year":2015}' | http POST $HOST/api/vehicles
-echo '{"brand":"Fiat", "model":"Tipo", "year":2017}' | http POST $HOST/api/vehicles
+== Lambda w CloudFormation (template-15)
+* *Problem*: W CFN brakuje wsparcia dla określonej funkcjonalności?
+* *Rozwiązanie*: Cloudformation Custom Resource (Lambda)
 
-# GET
-http $HOST/api/vehicles
-http $HOST/api/vehicles/1
-----
+== Lambda a VPC
+* *Problem*: Jak z Lambdy dostać się do zasobów ukrytych wewnątrz VPC?
+* *Rozwiązanie*: Lambda VPC networking
+** Dynamicznie podłączany ENI (ElasticNetworkInterface)
+** Brak publicznego adresu IP
+** Lambda w Private Subnet
+** Nat Gateway / Nat Instance
 
-== Aplikacja demo - API (2/2)
-[source,bash]
-----
-# PUT
-echo '{"brand":"Kia", "model":"Ceed", "year":2016}' | http PUT $HOST/api/vehicles/1
+== Nat Gateway (template-15)
+image::nat-gateway.png[]
+https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html
 
-# DELETE
-http DELETE $HOST/api/vehicles/1
+== EC2 Launch Template (template-16)
+* *Problem*: Jak uruchomić EC2 z gotowego szablonu?
+* *Rozwiązanie*: EC2 Launch Template
+** Wersjonowanie
+** Zastępuje LaunchConfiguration
+** Immutable infrastructure
 
-# GET InstanceId
-http $HOST/api/instance_id
-----
+== EC2 Auto Scaling (template-17)
+* *Problem*: Jak skalować aplikację na EC2 w poziomie?
+* *Rozwiązanie*: Zastosuj AutoScalingGroup
+** Konfiguracja
+** Zarządzanie instancjami
+** Health checks
+*** Health check grace period
+** Reguły autoscaling
+*** Simple, TargetTracking, Step
+*** Autoscaling cooldown
 
-
-== Przypomnienie
-image::diagram-09.png[]
-
-== Deployment aplikacji (template-10)
-* *Problem*: Jak automatycznie zainstalować i uruchomić aplikację po utworzeniu EC2 przez CFN?
-* *Rozwiązanie*: Umieścić paczkę w S3, a następnie zainstalować ją przez `cfn-init`
-
-== Deployment aplikacji (template-10)
-image::diagram-10.png[]
-
-== RDS - Więcej niż baza danych
-* Managed mySQL, PostgreSQL, SQLServer, Oracle
-* Współpraca z VPC
-* Backupy i Snapshoty
-* High Availability
-* Repliki
-* CFN DeletionPolicy
-* Aurora
-
-== AWS - Availability Zones
-image::london-region.png[]
-
-== RDS - Baza danych dla aplikacji demo-app (template-11)
-image::diagram-11.png[]
-
-== RDS - Konfiguracja Security groups
-* *Problem*: Brak komunikacji z EC2 do RDS?
-* *Rozwiązanie*: Poprawna konfiguracja Security Groups
-
-image::diagram-12.png[]
-
-== Ręczna konfiguracja bazy danych pod aplikację demo-app (template-12)
-[source,bash]
-----
-cd demo-app
-# Load DB credentials
-source ../env.sh
-# Create database schema
-mysql -h $DB_HOST -u sa -p$DB_PASSWORD
-create database aws_workshop;
-# Create database schema objects
-export FLASK_CONFIG=prod
-export FLASK_APP=run.py
-flask db upgrade
-# Restart app
-sudo systemctl restart demo-app.service
-----
-
-== SecretsManager - Bezpieczne miejsce dla haseł do bazy danych
-* *Problem*: Jak automatycznie wygenerować hasło roota dla bazy?
-* *Rozwiązanie*: Skorzystać z SecretsManager
-
-== Ręczna konfiguracja bazy danych z SecretManagerem (1/2) (template-13)
-[source,bash]
-----
-cd demo-app
-# Load DB credentials
-source ../env.sh
-
-# Create database schema
-mysql -h $DB_HOST -u sa -p
-create database aws_workshop;
-create user demo_app@'%' identified by '<demo_app_password_from_secretsmanager>';
-grant all on aws_workshop.* to demo_app@'%';
-----
-
-== Ręczna konfiguracja bazy danych z SecretManagerem (2/2) (template-13)
-[source,bash]
-----
-# Create database schema objects
-export FLASK_CONFIG=prod
-export FLASK_APP=run.py
-flask db upgrade
-
-# Restart app
-sudo systemctl restart demo-app.service
-----
-
-== RDS IAM authentication (1/4) (template-14)
-* https://aws.amazon.com/premiumsupport/knowledge-center/users-connect-rds-iam/
-* Brak w CFN https://github.com/aws-cloudformation/aws-cloudformation-coverage-roadmap/issues/105
-
-== RDS IAM authentication (2/4) (template-14)
-[source,bash]
-----
-cd demo-app
-# Load DB credentials
-source ../env.sh
-
-# Create database schema
-mysql -h $DB_HOST -u sa -p
-CREATE DATABASE aws_workshop;
-CREATE USER demo_app@'%' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
-GRANT ALL ON aws_workshop.* TO demo_app@'%';
-----
-
-== RDS IAM authentication (2/4) (template-14)
-[source,bash]
-----
-# Generate temporary database password
-export DB_PASSWORD=$(aws --region eu-central-1 rds generate-db-auth-token --hostname $DB_HOST --username $DB_USER --port 3306)
-
-# Connect to the database using temporary password
-mysql --ssl -h $DB_HOST -u $DB_USER -p"$DB_PASSWORD" aws_workshop
-
-# Connect to the database using temporary password and certificate verification
-mysql --ssl-ca=rds-ca-2019-root.pem -h $DB_HOST -u $DB_USER -p"$DB_PASSWORD" aws_workshop
-----
-
-== RDS IAM authentication (3/4) (template-14)
-[source,bash]
-----
-# Create database schema objects
-export FLASK_CONFIG=prod
-export FLASK_APP=run.py
-flask db upgrade
-
-# Restart app
-sudo systemctl restart demo-app.service
-----
+== EC2 Auto Scaling z TargetTracking (template-18)
+* *Problem*: Jak automatycznie zarządzać rozmiarem AutoScalingGroup?
+* *Rozwiązanie*: ScalingPolicy
