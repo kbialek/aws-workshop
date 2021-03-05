@@ -1,0 +1,67 @@
+= AWS Workshop #6
+Krzysztof Białek
+:imagesdir: images
+:sectids!:
+:experimental:
+:stylesdir: styles
+:stylesheet: main.css
+
+== Agenda
+* Lambda - wprowadzenie
+* Lambda w CloudFormation
+* Lambda a VPC
+* Nat Gateway
+* EC2 Launch Template
+* EC2 Auto Scaling
+
+== Lambda - wprowadzenie
+* Koncepcja
+* Sync/Async
+* Timeout
+* Uprawnienia
+* Logi
+
+== Lambda w CloudFormation (template-15)
+* *Problem*: W CFN brakuje wsparcia dla określonej funkcjonalności?
+* *Rozwiązanie*: Cloudformation Custom Resource (Lambda)
+
+== Lambda a VPC
+* *Problem*: Jak z Lambdy dostać się do zasobów ukrytych wewnątrz VPC?
+* *Rozwiązanie*: Lambda VPC networking
+** Dynamicznie podłączany ENI (ElasticNetworkInterface)
+** Brak publicznego adresu IP
+** Lambda w Private Subnet
+** Nat Gateway / Nat Instance
+
+== Nat Gateway (template-15)
+image::nat-gateway.png[]
+https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html
+
+== EC2 Launch Template (template-16)
+* *Problem*: Jak uruchomić EC2 z gotowego szablonu?
+* *Rozwiązanie*: EC2 Launch Template
+** Wersjonowanie
+** Zastępuje LaunchConfiguration
+** Immutable infrastructure
+
+== EC2 Auto Scaling (1/2) (template-17)
+* *Problem*: Jak skalować aplikację na EC2 w poziomie?
+* *Rozwiązanie*: Zastosuj AutoScalingGroup
++
+image::asg.png[]
+https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html
+
+== EC2 Auto Scaling (2/2) (template-17)
+* Konfiguracja
+* Zarządzanie instancjami
+* Health checks
+** Health check grace period
+* Reguły autoscaling
+** Simple, TargetTracking, Step
+** Autoscaling cooldown
+* Metryki
+* CloudWatch Agent
+
+== EC2 Auto Scaling z TargetTracking (template-18)
+* *Problem*: Jak automatycznie zarządzać rozmiarem AutoScalingGroup?
+* *Rozwiązanie*: ScalingPolicy
