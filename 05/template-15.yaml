@@ -460,6 +460,13 @@ Resources:
 
   DatabaseSchemaInitLambda:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - InternetGatewayAttachment
+      - RouteTableInternetGatewayRoute
+      - RouteTableNatGatewayRoute
+      - PublicSubnetRouteTableAssociation
+      - PrivateSubnetARouteTableAssociation
+      - PrivateSubnetBRouteTableAssociation
     Properties:
       Description: Initializes Database for demo application
       Runtime: python3.8

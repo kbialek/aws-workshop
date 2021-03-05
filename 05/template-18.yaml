@@ -338,6 +338,7 @@ Resources:
       MetricsCollection:
         - Granularity: 1Minute
 
+
   Ec2MemHighUsageAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -489,6 +490,13 @@ Resources:
 
   DatabaseSchemaInitLambda:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - InternetGatewayAttachment
+      - RouteTableInternetGatewayRoute
+      - RouteTableNatGatewayRoute
+      - PublicSubnetRouteTableAssociation
+      - PrivateSubnetARouteTableAssociation
+      - PrivateSubnetBRouteTableAssociation
     Properties:
       Description: Initializes Database for demo application
       Runtime: python3.8
