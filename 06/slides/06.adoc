@@ -7,61 +7,67 @@ Krzysztof Białek
 :stylesheet: main.css
 
 == Agenda
-* Lambda - wprowadzenie
-* Lambda w CloudFormation
-* Lambda a VPC
-* Nat Gateway
-* EC2 Launch Template
-* EC2 Auto Scaling
+* Route53 - zarządzenie domenami
+* LoadBalancer - wprowadzenie
+* Współpraca LoadBalancer z AutoScalingGroup
+* LoadBalancer - access logs
+* Certyfikaty SSL w AWS
+* Hostowanie statycznej strony w S3
+* Hostowanie statycznej strony z Cloudfront
 
-== Lambda - wprowadzenie
-* Koncepcja
-* Sync/Async
-* Timeout
-* Uprawnienia
-* Logi
-
-== Lambda w CloudFormation (template-15)
-* *Problem*: W CFN brakuje wsparcia dla określonej funkcjonalności?
-* *Rozwiązanie*: Cloudformation Custom Resource (Lambda)
-
-== Lambda a VPC
-* *Problem*: Jak z Lambdy dostać się do zasobów ukrytych wewnątrz VPC?
-* *Rozwiązanie*: Lambda VPC networking
-** Dynamicznie podłączany ENI (ElasticNetworkInterface)
-** Brak publicznego adresu IP
-** Lambda w Private Subnet
-** Nat Gateway / Nat Instance
-
-== Nat Gateway (template-15)
-image::nat-gateway.png[]
-https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html
-
-== EC2 Launch Template (template-16)
-* *Problem*: Jak uruchomić EC2 z gotowego szablonu?
-* *Rozwiązanie*: EC2 Launch Template
-** Wersjonowanie
-** Zastępuje LaunchConfiguration
-** Immutable infrastructure
-
-== EC2 Auto Scaling (1/2) (template-17)
-* *Problem*: Jak skalować aplikację na EC2 w poziomie?
-* *Rozwiązanie*: Zastosuj AutoScalingGroup
-+
-image::asg.png[]
-https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html
-
-== EC2 Auto Scaling (2/2) (template-17)
-* Konfiguracja
-* Zarządzanie instancjami
+== Route53 - zarządzenie domenami
+* Hosted zones
+* Routing policy
 * Health checks
-** Health check grace period
-* Reguły autoscaling
-** Simple, TargetTracking, Step
-** Autoscaling cooldown
-* Metryki
-* CloudWatch Agent
+* Rekordy Alias
 
-== EC2 Auto Scaling z TargetTracking (template-18)
-* *Problem*: Jak automatycznie zarządzać rozmiarem AutoScalingGroup?
-* *Rozwiązanie*: ScalingPolicy
+== Route53 - delegacja domeny
+image::dns-delegate.png[]
+
+== High Availability dla serwerów aplikacji (template-19)
+* Rozmieszczenie serwerów aplikacji w >1 AZ
+* 2x Public Subnet
+* 2x Private Subnet
+
+== LoadBalancing przez DNS
+* *Problem*: Jak rozrzucić ruch HTTP na kilka serwerów?
+* *Rozwiązanie 1*: DNS
+* Domena rozwiązywana na kilka adresów IP
+** Adres IP wybierany po stronie serwera DNS
+** Adres IP wybierany po stronie klienta
+
+== LoadBalancer - wprowadzenie
+* *Problem*: Jak rozrzucić ruch HTTP na kilka serwerów?
+* *Rozwiązanie 2*: LoadBalancer
+* Typy: Application (layer 7) i Network (layer 4)
+* TargetGroups
+** Targets: EC2, Lambda, IP
+** RoutingAlgorithm: RoundRobin (domyślnie), LeastOutstandingRequests
+* Listeners
+** Terminacja SSL
+** Rules -> TargetGroups
+* HealthChecks
+
+== LoadBalancer - deployment
+. template-20 - odpina WebServerSecurityGroup od LaunchTemplate (EC2)
+. ASG Instance Refresh
+. template-21 - instaluje ELB i przywraca WebServerSecurityGroup
+. ASG Instance Refresh
+
+== Współpraca LoadBalancer z AutoScalingGroup
+* *Problem*: ELB i ASG używają różnych health checków
+* *Rozwiązanie*: Skonfiguruj ASG tak, by korzystała z Healthchecków ELB
+
+== Certyfikaty SSL w AWS
+* *Problem*: Jak zarządzać certyfikatami SSL w AWS
+* *Rozwiązanie*: AWS Certificate Manager
+
+== Hostowanie statycznej strony (frontend-template-01.yaml)
+* *Problem*: Jak w AWS hostować statyczne strony WWW?
+* *Rozwiązanie 1*: S3
+** Tylko HTTP
+** Nazwa bucketa == nazwa domeny www
+* *Rozwiązanie 2*: Cloudfront
+** HTTP i HTTPS
+** Cache (CDN)
+** Edge Locations

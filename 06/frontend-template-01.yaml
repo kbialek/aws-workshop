@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  SslCertificateArn:
+    Type: String
+
+
+Resources:
+
+  # S3 WebSite
+
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: www.demo-app.pl
+      AccessControl: PublicRead
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  # Cloudfront
+
+  WebsiteCloudfrontBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: TRUE
+        BlockPublicPolicy: TRUE
+        IgnorePublicAcls: TRUE
+        RestrictPublicBuckets: TRUE
+
+  WebsiteCloudfrontBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteCloudfrontBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudfrontOriginAccessIdentity
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub
+                - "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${OAI}"
+                - OAI: !Ref WebsiteOriginAccessIdentity
+            Action:
+              - "s3:GetObject"
+            Resource:
+              - !Sub arn:aws:s3:::${WebsiteCloudfrontBucket}/*
+
+  WebsiteOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: DemoAppWebsite
+
+  WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases: [ 'www.demo-app.pl' ]
+        Comment: 'Demo WebSite Distribution'
+        DefaultCacheBehavior:
+          AllowedMethods: [ GET, HEAD ]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+          TargetOriginId: DemoAppWebsite
+          ViewerProtocolPolicy: https-only
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http1.1
+        ViewerCertificate:
+          AcmCertificateArn: !Ref SslCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2019
+        Origins:
+          - Id: DemoAppWebsite
+            DomainName: !GetAtt WebsiteCloudfrontBucket.DomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${WebsiteOriginAccessIdentity}
+Outputs:
+  WebsiteBucket:
+    Value: !Ref WebsiteBucket
+
+  WebsiteDomainName:
+    Value: !GetAtt WebsiteBucket.DomainName
+
+  WebsiteCloudfrontBucket:
+    Value: !Ref WebsiteCloudfrontBucket

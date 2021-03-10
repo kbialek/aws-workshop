@@ -1,4 +1,6 @@
-from flask import request
+import json
+
+from flask import request, make_response
 
 from . import api
 from . import vehicles_model
@@ -8,7 +10,14 @@ from .. import db
 @api.route('/vehicles', methods=['GET'])
 def list_vehicles():
     result = db.session.query(vehicles_model.Vehicle).all()
-    return {"items": [vehicle.to_dict() for vehicle in result]}
+
+    data = [vehicle.to_dict() for vehicle in result]
+
+    l = len(result)
+    resp = make_response(json.dumps(data), 200)
+    resp.headers['Access-Control-Expose-Headers'] = 'Content-Range'
+    resp.headers['Content-Range'] = 'vehicles 0-{}/{}'.format(l, l)
+    return resp
 
 
 @api.route('/vehicles/<int:vehicle_id>', methods=['GET'])
@@ -59,4 +68,3 @@ def delete_vehicle(vehicle_id):
         db.session.delete(vehicle)
         db.session.commit()
         return {'id': vehicle.id}, 200
-

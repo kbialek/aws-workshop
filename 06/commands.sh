@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euf -o pipefail +o allexport
 
-APP_STACK_NAME="AppStack"
+BACKEND_STACK_NAME="BackendStack"
+FRONTEND_STACK_NAME="FrontendStack"
 BUILD_STACK_NAME="BuildStack"
 KEY_PAIR="kbialek"
+WEBSITE_SSL_CERTIFICATE_ARN="arn:aws:acm:us-east-1:759483279519:certificate/893ce825-8a53-4bbf-8d71-238db5130f69"
+API_SSL_CERTIFICATE_ARN="arn:aws:acm:eu-central-1:759483279519:certificate/ac0f18af-b0fc-4aea-aab7-bd5d4abda6f9"
 
 ### Build Stack
 
@@ -28,6 +31,8 @@ function get-deployment-bucket() {
       --output text
 }
 
+## Backend
+
 function app-backend-package() {
     rm -f demo-app.zip
     cd demo-app/backend
@@ -39,6 +44,54 @@ function app-backend-upload() {
   BUCKET=$(get-deployment-bucket)
   aws s3 cp upload/demo-app.zip "s3://$BUCKET/"
 }
+
+## Frontend
+
+function app-frontend-package() {
+    cd demo-app/frontend
+    yarn build
+    cd -
+}
+
+function deploy-frontend-stack() {
+    template_file="frontend-template-$2.yaml"
+    aws cloudformation deploy \
+      --stack-name "$FRONTEND_STACK_NAME" \
+      --template-file "$template_file" \
+      --capabilities CAPABILITY_IAM \
+      --parameter-overrides \
+        SslCertificateArn="$WEBSITE_SSL_CERTIFICATE_ARN"
+}
+
+function get-website-bucket() {
+    aws cloudformation describe-stacks \
+      --stack-name "$FRONTEND_STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucket'].OutputValue" \
+      --output text
+}
+
+function get-website-cloudfront-bucket() {
+    aws cloudformation describe-stacks \
+      --stack-name "$FRONTEND_STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='WebsiteCloudfrontBucket'].OutputValue" \
+      --output text
+}
+
+function get-website-domain-name() {
+    aws cloudformation describe-stacks \
+      --stack-name "$FRONTEND_STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='WebsiteDomainName'].OutputValue" \
+      --output text
+}
+
+function app-frontend-upload() {
+    WEBSITE_BUCKET="$(get-website-bucket)"
+    aws s3 sync --delete --acl public-read demo-app/frontend/build/ "s3://$WEBSITE_BUCKET"
+    WEBSITE_CLOUDFRONT_BUCKET="$(get-website-cloudfront-bucket)"
+    aws s3 sync --delete demo-app/frontend/build/ "s3://$WEBSITE_CLOUDFRONT_BUCKET"
+}
+
+## Lambdas
 
 function app-lambda-package() {
     base_dir=$(pwd)
@@ -70,28 +123,31 @@ function deploy-stack() {
     template_file="template-$2.yaml"
     DEPLOYMENT_BUCKET=$(get-deployment-bucket)
     aws cloudformation deploy \
-      --stack-name "$APP_STACK_NAME" \
+      --stack-name "$BACKEND_STACK_NAME" \
       --template-file "$template_file" \
       --capabilities CAPABILITY_IAM \
       --parameter-overrides \
         KeyPair="$KEY_PAIR" \
-        DeploymentBucket="$DEPLOYMENT_BUCKET"
+        DeploymentBucket="$DEPLOYMENT_BUCKET" \
+        ApiSslCertificate="$API_SSL_CERTIFICATE_ARN"
 }
 
 function delete-stack() {
-    aws cloudformation delete-stack --stack-name "$APP_STACK_NAME"
+    LOGS_BUCKET_NAME=$(get-logs-bucket)
+    aws s3 rm --recursive "s3://$LOGS_BUCKET_NAME"
+    aws cloudformation delete-stack --stack-name "$BACKEND_STACK_NAME"
 }
 
-function get-ec2-ip() {
+function get-logs-bucket() {
     aws cloudformation describe-stacks \
-      --stack-name "$APP_STACK_NAME" \
-      --query "Stacks[0].Outputs[?OutputKey=='Ec2Ip'].OutputValue" \
+      --stack-name "$BACKEND_STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='LogsBucket'].OutputValue" \
       --output text
 }
 
 function get-asg-ec2-public-ip() {
     ASG_NAME=$(aws cloudformation describe-stacks \
-      --stack-name "$APP_STACK_NAME" \
+      --stack-name "$BACKEND_STACK_NAME" \
       --query "Stacks[0].Outputs[?OutputKey=='AsgName'].OutputValue" \
       --output text)
     INSTANCES=$(aws autoscaling describe-auto-scaling-groups \

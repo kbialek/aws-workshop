@@ -1,4 +1,4 @@
-deploy-stack-15 deploy-stack-16 deploy-stack-17 deploy-stack-18: deploy-stack-%:
+deploy-stack-18 deploy-stack-19 deploy-stack-20 deploy-stack-21: deploy-stack-%:
 	./commands.sh deploy-stack $*
 
 delete-stack:
@@ -19,6 +19,9 @@ delete-build-stack:
 get-deployment-bucket:
 	./commands.sh get-deployment-bucket
 
+get-logs-bucket:
+	./commands.sh get-logs-bucket
+
 app-backend-package:
 	./commands.sh app-backend-package
 
@@ -31,3 +34,18 @@ app-lambda-package-init_db: app-lambda-package-%:
 
 app-lambda-upload: app-lambda-package-init_db
 	./commands.sh app-lambda-upload
+
+app-frontend-package:
+	./commands.sh app-frontend-package
+
+deploy-frontend-stack-01: deploy-frontend-stack-%:
+	./commands.sh deploy-frontend-stack $*
+
+get-website-bucket:
+	./commands.sh get-website-bucket
+
+get-website-domain-name:
+	./commands.sh get-website-domain-name
+
+app-frontend-upload: app-frontend-package
+	./commands.sh app-frontend-upload

@@ -35,30 +35,44 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  PublicSubnet:
+  PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      CidrBlock: 10.0.0.0/24
+      CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
       AvailabilityZone: eu-central-1a
 
-  PublicSubnetRouteTableAssociation:
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: eu-central-1b
+
+  PublicSubnetARouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet
+      SubnetId: !Ref PublicSubnetA
 
-  PublicSubnetNatGatewayElasticIp:
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  PublicSubnetANatGatewayElasticIp:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
 
-  PublicSubnetNatGateway:
+  PublicSubnetANatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt PublicSubnetNatGatewayElasticIp.AllocationId
-      SubnetId: !Ref PublicSubnet
+      AllocationId: !GetAtt PublicSubnetANatGatewayElasticIp.AllocationId
+      SubnetId: !Ref PublicSubnetA
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
@@ -70,7 +84,7 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref PublicSubnetNatGateway
+      NatGatewayId: !Ref PublicSubnetANatGateway
 
   PrivateSubnetA:
     Type: AWS::EC2::Subnet
@@ -327,14 +341,15 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn: InternetGateway
     Properties:
-      MinSize: 1
-      MaxSize: 2
+      MinSize: 2
+      MaxSize: 4
       Cooldown: 10 # So short for demo purposes only
       LaunchTemplate:
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
       VPCZoneIdentifier:
-        - !Ref PublicSubnet
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
       MetricsCollection:
         - Granularity: 1Minute
 
@@ -494,7 +509,8 @@ Resources:
       - InternetGatewayAttachment
       - RouteTableInternetGatewayRoute
       - RouteTableNatGatewayRoute
-      - PublicSubnetRouteTableAssociation
+      - PublicSubnetARouteTableAssociation
+      - PublicSubnetBRouteTableAssociation
       - PrivateSubnetARouteTableAssociation
       - PrivateSubnetBRouteTableAssociation
     Properties:
